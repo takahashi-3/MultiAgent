@@ -5,7 +5,7 @@ import os
 
 from child_agent import ChildAgent
 
-os.environ['OPENAI_API_KEY'] = "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"
+os.environ['OPENAI_API_KEY'] = ""
 
 parentAgent_systemPrompt = "あなたは複数の顧客エージェントの行動を管理し、より現実的で多様な訓練状況を作成するという役目を持っているエージェントです。"
 thema = "日本の飲食店"
