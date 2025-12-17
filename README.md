@@ -22,3 +22,11 @@
 - 以下の作業は`venv`など仮想環境を作成して、行ってください
   - `pip install -r requirements.txt` を実行
   - `LangGraphMultiAgent_ActivateNode.py` を実行して、訓練開始
+
+## 出力ファイル
+- `日付`ディレクトリ以下に下記ファイルが出力される
+  - `customer-agent_history/agent-name-N.txt`
+    - 名前が`N`である顧客役LLMと訓練者との対話履歴
+  - `prompt/controller_prompt.txt`
+    - 指示役LLMによるタスク割り当てにおいて、与えられるプロンプト(User Promot)
+    - 及び、その出力となるタスク割り当ての結果
