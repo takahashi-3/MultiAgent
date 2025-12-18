@@ -21,7 +21,10 @@ INIT_TASK_SITUATION = ['入店', '料理の注文', '料理の配膳', '片付�
 SYNCRO_CUSTOMER_NUMBER = 2
 
 # タスクの発生順序
-TASK_PROCEDURE_EXPLAIN = '接客タスクは基本的に \'入店\' -> \'料理の注文\' -> \'料理の配膳\' -> \'片付け\' の順に発生します。'
+TASK_PROCEDURE_EXPLANATION = '接客タスクは基本的に \'入店\' -> \'料理の注文\' -> \'料理の配膳\' -> \'片付け\' の順に発生します。'
+
+# タスク終了後の待ち時間に関する概念の説明
+# WAIT_TIME_EXPLANATION = '特定の客に対する接客の終了後、その客が次の接客タスクを発生させるまでには、基本的に時間を要します。（例：客Nに対して、\'料理の配膳\'を終えた後、客Nは配膳された料理を食べ始め、料理を食べ終えた後で\'片付け\'のタスクが発生する）'
 
 # 指示役LLMによるタスク割り当ての出力形式
 class Format_task_assign(BaseModel):
@@ -72,7 +75,7 @@ def check_controller_prompt(prompt: str, task_dict: Dict[str, Dict[str, str]]):
     # コンテキストの確認
     os.makedirs(f'./{g.output_dir}/prompt', exist_ok=True)
     with open(f'./{g.output_dir}/prompt/controller_prompt.txt', 'a') as fp:
-        fp.write(prompt + f'\ntask:{task_dict}\n\n')
+        fp.write(prompt + f'\n\n出力:: 割り当てタスク:{task_dict}\n\n\n')
 
 def check_task_assign(task_dict: Dict[str, Dict[str, str]], history_for_each_agent: Dict[str, List[str]]) -> None:
     """
@@ -178,7 +181,7 @@ def task_generator(state: AppState):
         # 初期に発生するタスクを設定(訓練状況は無し)
         system_message = f"あなたには、{INIT_TASK_SITUATION}の中から顧客役エージェントたちの発生させる接客タスクを選択するという役割が課されています。"
         #human_message = f"{thema}というテーマにおいて、全顧客役エージェントから2名を選び出し、それらの顧客役エージェントが店員に対して、発生させる接客タスクを{INIT_TASK_SITUATION}から１つずつ選択してください。\n\n#全顧客役エージェント:{speakers_names}"
-        human_message = f"{thema}というテーマにおいて、全顧客役エージェントから{assign_agent_number}名を選び出し、それらの顧客役エージェントが店員に対して、発生させる接客タスクを{INIT_TASK_SITUATION}から１つずつ選択してください。タスクを選択する際には、\'コンテキスト\'を参照して顧客役エージェントの性格やタスクの内容などを考慮してください。\n\n#全顧客役エージェント:{speakers_names}\n\n#コンテキスト:{get_prompt_history_for_each_agent(speakers_personality, history_for_each_agent)}"
+        human_message = f"{thema}というテーマにおいて、全顧客役エージェントから{assign_agent_number}名を選び出し、それらの顧客役エージェントが店員に対して、発生させる接客タスクを{INIT_TASK_SITUATION}から１つずつ選択してください。タスクを選択する際には、\'コンテキスト\'を参照して顧客役エージェントの性格や接客タスクの内容などを考慮してください。\n\n#全顧客役エージェント:{speakers_names}\n\n#コンテキスト:{get_prompt_history_for_each_agent(speakers_personality, history_for_each_agent)}"
         
         structured_response_model = model.with_structured_output(Format_task_assign)
         response = structured_response_model.invoke([SystemMessage(system_message), HumanMessage(human_message)])
@@ -208,7 +211,7 @@ def task_generator(state: AppState):
 
         # タスクの更新
         system_message = f"あなたには、{INIT_TASK_SITUATION}の中から顧客役エージェントたちの発生させる接客タスクを選択するという役割が課されています。"
-        human_message = f"{thema}というテーマにおいて、全顧客役エージェントから{assign_agent_number}名を選び出し、それらの顧客役エージェントが店員に対して、発生させる接客タスクを{INIT_TASK_SITUATION}から１つずつ選択してください。タスクを選択する際には、\'コンテキスト\'や\'タスクの発生順序\'を参照して顧客役エージェントの性格やタスクの内容、これまでの履歴などを考慮してください。\n\n#全顧客役エージェント:{speakers_names}\n\n#コンテキスト:{get_prompt_history_for_each_agent(speakers_personality, history_for_each_agent)}\n\n#タスクの発生順序:{TASK_PROCEDURE_EXPLAIN}"
+        human_message = f"{thema}というテーマにおいて、全顧客役エージェントから{assign_agent_number}名を選び出し、それらの顧客役エージェントが店員に対して、発生させる接客タスクを{INIT_TASK_SITUATION}から１つずつ選択してください。タスクを選択する際には、\'コンテキスト\'や\'接客タスクの発生順序\'を参照して顧客役エージェントの性格やタスクの内容、これまでの対話履歴などを考慮してください。\n\n#全顧客役エージェント:{speakers_names}\n\n#接客タスクの発生順序:{TASK_PROCEDURE_EXPLANATION}\n\n#コンテキスト:{get_prompt_history_for_each_agent(speakers_personality, history_for_each_agent)}"
         #check_controller_prompt(human_message)
         
         structured_response_model = model.with_structured_output(Format_task_assign)

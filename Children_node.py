@@ -70,9 +70,13 @@ def customer_agent(state: ChildAppState) -> bool:
 
     print(f"客{agent_name}:{utterance[left_limit:right_limit+1]}")
 
-    os.makedirs(f'./{g.output_dir}/customer-agent_history/', exist_ok=True)
-    with open(f'./{g.output_dir}/customer-agent_history/agent_name-{agent_name}.txt', 'a') as fp:
-        fp.write(f'utterance: {utterance[left_limit:right_limit+1]}\n history:\n\t{history}\n\n\n')
+    agent_output_dir = f'./{g.output_dir}/customer-agent_history/agent-{agent_name}/'
+    os.makedirs(agent_output_dir, exist_ok=True)
+    with open(agent_output_dir + 'history.txt', 'a') as fp:
+        fp.write(f'utterance: {utterance[left_limit:right_limit+1]}\nhistory:\n\t{history}\n\n\n')
+    
+    with open(agent_output_dir + 'prompt.txt', 'a') as fp:
+        fp.write(f'customer-utt_prompt:\n{human_message}\n\n')
 
     history.append(agent_name + ":" + utterance[left_limit:right_limit+1])
 
@@ -114,7 +118,7 @@ def customer_agent_conclude(state: ChildAppState):
     #system_message = f"あなたは次のようなパーソナリティをもった人物です。\n---------------\n{agent_personality}\n---------------\nこの人物\"{agent_name}\"として店員であるuserと{thema}について会話をしてください。"
     #human_message_prefix = f"あなたは今、店員に{agent_task['task']}を行うというタスクをもっています。\nこれまでの会話であなたに対しての接客は完了しました。なのでこれまでの履歴をもとに、店員に対して、納得したこともしくは感謝していることを自然な短い文体で伝えてください。発言は丁寧になりすぎないように注意してください。また、発言は「」で囲ってください。\n\n#会話の履歴:\n"
     human_message_prefix = f"あなたは今、店員に{agent_task['task']}を行うというタスクをもっています。\nこれまでの会話であなたに対しての接客は完了しました。なので、これまでの履歴をもとに、あなたの次の発言を短い自然な話し言葉で行ってください。発言は丁寧になりすぎないように注意してください。また、発言は「」で囲ってください。\n\n#会話の履歴:\n"
-    human_message = human_message_prefix + "\n".join(history) + "\n" + prev_response  + f"\n{agent_name}: "
+    human_message = human_message_prefix + "\n".join(history) + f"\n{agent_name}: " #"\n" + prev_response 
         
     response = model.invoke([SystemMessage(content=system_message), HumanMessage(content=human_message)])
 
@@ -124,10 +128,14 @@ def customer_agent_conclude(state: ChildAppState):
     left_limit = utterance.find("「")
     right_limit = utterance.find("」")
     print(f"客{agent_name}:{utterance[left_limit:right_limit+1]}")
-
-    os.makedirs(f'./{g.output_dir}/customer-agent_history/', exist_ok=True)
-    with open(f'./{g.output_dir}/customer-agent_history/agent_name-{agent_name}.txt', 'a') as fp:
+    
+    agent_output_dir = f'./{g.output_dir}/customer-agent_history/agent-{agent_name}/'
+    os.makedirs(agent_output_dir, exist_ok=True)
+    with open(agent_output_dir + 'history.txt', 'a') as fp:
         fp.write(f'utterance: {utterance[left_limit:right_limit+1]}\nhistory:\n\t{history}\n\n\n')
+    
+    with open(agent_output_dir + 'prompt.txt', 'a') as fp:
+        fp.write(f'customer-conclude-utt_prompt:\n{human_message}\n\n')
 
     #return {"response": prev_response + '\n' + agent_name + ':' + utterance[left_limit:right_limit+1] + '\n'}
     return {"response": agent_name + ':' + utterance[left_limit:right_limit+1] + '\n'}
