@@ -4,10 +4,22 @@
   - 音声入出力を使用した接客訓練の実現
     - ユーザ発話と顧客の発話のみ音声で行う
 
-- history_agent-N: agent-Nと訓練者との対話履歴
-- controller_prompt: 指示役LLMにタスク割り当てを行わせる際のプロンプト
+# システムの出力
+- `日付`/
+  - customer-agent-history/
+    - agent-N/history.txt: agent-Nと訓練者との対話履歴
+    - agent-N/prompt.txt: agent-Nが発話を行う際に与えられたプロンプト
+  - prompt/controller_prompt.txt: 指示役LLMにタスク割り当てを行わせる際のプロンプト & そのプロンプトで割り当てられたタスク
 
 # 進捗状況
+## 12/18
+- 指示役LLMによる動的タスク割り当て
+  - 指示役・顧客役LLMへ与えるプロンプトに「顧客役の性格」を追加
+    - 実際の対話内容は `2025-12-18_add_personality_example_claim/customer-agent_history` 以下に記録
+  - 指示役LLMによる新規顧客の追加
+    - プロンプトを修正することで、訓練中に新規の顧客役LLMを登場させることができることを確認
+    - 実際のタスク割り当ての内容は `2025-12-18_add-new-customer-agent/prompt/controller_prompt.txt` に記録
+
 ## 12/17
 - 指示役LLMによる動的タスク割り当て
   - 「これまでの訓練状況を考慮した**指示役LLM**による動的なタスク割り当て」についてプロトタイプを実装
