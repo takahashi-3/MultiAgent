@@ -25,7 +25,7 @@ import Children_node as child
 import global_value as g
 
 # OPENAI_API_KEY を入力
-#os.environ["OPENAI_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = ""
 
 # 詳細なプロフィールあり
 #SPEAKERS = [{"1": "'国籍': '日本', '性別': '女性', '年代: '30代', '職業': '会社員', '性格': '落ち着いた性格で、じっくり物事を考えて発言します。'"},
@@ -40,11 +40,11 @@ import global_value as g
 #            {"3": "'国籍': '日本', '性別': '男性'"},
 #            {"4": "'国籍': '日本', '性別': '女性'"},
 #            {"5": "'国籍': '日本', '性別': '男性'"}]
-SPEAKERS = {"1": "'国籍': '日本', '性別': '女性'",
-            "2": "'国籍': '日本', '性別': '男性'",
-            "3": "'国籍': '日本', '性別': '男性'",
-            "4": "'国籍': '日本', '性別': '女性'",
-            "5": "'国籍': '日本', '性別': '男性'"}
+SPEAKERS = {"1": "'国籍': '日本', '性別': '女性', '性格': '穏やか'",
+            "2": "'国籍': '日本', '性別': '男性', '性格': '短期で怒りっぽい'",
+            "3": "'国籍': '日本', '性別': '男性', '性格': '穏やか'",
+            "4": "'国籍': '日本', '性別': '女性', '性格': '短期'",
+            "5": "'国籍': '日本', '性別': '男性', '性格': '怒りっぽい'"}
 SPEAKERS_NAMES = ["1", "2", "3", "4", "5"]
 
 RECURSION_LIMIT = 1000000000
@@ -183,12 +183,9 @@ def parallel_node(state: controller.AppState): # 親グラフとサブグラフ�
 
             for name in speaker_name_inPool:
                 if(name == current_target):
-                    pass
-                    #print(f'agent_name: {name}')
-                    #print(history_for_each_agent[name])
+                    #pass
                     history_for_each_agent[name].append(response['response'])
-                    #print(f'response: {response["response"]}')
-                    #print(history_for_each_agent[name])
+                    history_for_each_agent[name].append(f'*System:客{current_target}への接客が完了しました')
                 if((name != current_target) and (name in speaker_name_inEnv)):
                     history_for_each_agent[name].append(f'*System:他の顧客への対応で、{serving_time_for_other_agent}秒待たされました.')
 
