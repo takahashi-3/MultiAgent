@@ -10,7 +10,7 @@ import global_value as g
 TASK_DICT = {"入店": "'発言':'入店の人数を回答し、テーブルもしくはカウンター席への案内を待つ。店員によって、席への案内が行われた場合にこの接客タスクは終了する。'", # どのテーブルに誰が座っているのか決定する必要がある。（初期状態の設定）
              "料理の注文": "'発言':'具体的な料理の注文を行う。メニューとしては「パンケーキ」「ハンバーガーセット」「バゲットセット」「サンドウィッチセット」「チョコレートケーキ」「ピザ」の6つが存在している。店員によって、注文の受領が行われ、間違いがない場合にこの接客タスクは終了する。'",  # 商品としてどれがあるということを指定する必要がある
              "料理の配膳": "'発言':'まず店員からの料理の配膳が行われ、配膳された料理が違う場合には、そのことについて発言を行う。店員からの配膳が行われ、配膳された料理が注文したものと同じである場合にこの接客タスクは終了する。'", # 自分がどの商品をオーダーしているのか記憶する必要がある
-             "片付け": "'発言':'店員から片付けが行われた場合にはそれを了承し、行われなかった場合にはテーブル上の皿について片付けを要求する。店員によって、片付けが了承された場合にこの接客タスクは終了する。'", # 自分がどの商品をオーダーしているのか記憶する必要がある
+             "テーブルの片付け": "'発言':'店員から片付けが行われた場合にはそれを了承し、行われなかった場合にはテーブル上の皿について片付けを要求する。店員によって、片付けが了承された場合にこの接客タスクは終了する。'", # 自分がどの商品をオーダーしているのか記憶する必要がある
              "クレーム": "'発言':'店員に対して「今回のテーマにおいて発生する可能性のある不手際」を述べる。クレーム内容に関して、店員から自分の望む回答が得られた場合にこの接客タスクは終了する。'"} 
 
 
@@ -57,7 +57,7 @@ def customer_agent(state: ChildAppState) -> bool:
     system_message = f"あなたの名前は{agent_name}で、{thema}というテーマにおける客としての役割を持っています。また、{agent_personality}というパーソナリティをもっています。"
     #system_message = f"あなたは次のようなパーソナリティをもった人物です。\n---------------\n{agent_personality}\n---------------\nこの人物\"{agent_name}\"として店員であるuserと{thema}について会話をしてください。"
     #human_message_prefix = f"あなたは今、店員に{agent_task['task']}を行うというタスクをもっています。\nこれまでの会話の履歴を見て、あなたの次の発言を短い自然な話し言葉で行ってください。また、発言は「」で囲い、発言が「各接客タスクの詳細」の'発言'の内容から逸脱し過ぎないように気をつけてください。\n#各接客タスクの詳細{TASK_DICT}\n#会話の履歴\n"
-    human_message_prefix = f"あなたは今、店員に{agent_task['task']}を行うというタスクをもっています。\nこれまでの会話の履歴を見て、あなたの次の発言を短い自然な話し言葉で行ってください。また、発言は「」で囲い、もし\'Option\'の指定があれば、それに沿って対話を行ってください。\n\n#各接客タスクの詳細:{TASK_DICT}\n\n#Option:{agent_task['option']}\n\n#会話の履歴:\n"
+    human_message_prefix = f"あなたは今、店員に{agent_task['task']}を行うというタスクをもっています。\nこれまでの会話の履歴を見て、あなたの次の発言を短い自然な話し言葉で行ってください。また、発言は「」で囲い、もし\'Option\'や\'Sub_Task\', \'Sub_Option\'の指定があれば、それに沿って対話を行ってください。\n\n#各接客タスクの詳細:{TASK_DICT}\n\n#Option:{agent_task['option']}\n\n#Sub_Task:{agent_task['sub_task']}\n#Sub_Option:{agent_task['sub_option']}\n\n#会話の履歴:\n"
     human_message = human_message_prefix + "\n".join(history) + f"\n{agent_name}: "
     
     response = model.invoke([SystemMessage(content=system_message), HumanMessage(content=human_message)])
@@ -210,7 +210,7 @@ def task_finish_judge(state: ChildAppState):
     model = ChatOpenAI(model=model_name)
 
     system_message = f"あなたの名前は{agent_name}で、{thema}というテーマにおける客としての役割を持っています。また、これまでの会話の履歴から現在あなたに対して行われている接客が不足していないか判断する役目が課せられています。"
-    human_message = f"これまでの履歴と「各接客タスクの詳細」の'発言'の内容を見てください。\nそのあと、現在のあなたの接客タスク({agent_task['task']})に対する店員の接客を終了してもいいと判断した場合[Yes]、そうでない場合[No]を出力してください。またもし\'Option\'の指定があれば、それも判断材料に入れて判断を行ってください。\n\n#各接客タスクの詳細:{TASK_DICT}\n\n#Option:{agent_task['option']}\n\n#履歴:\n{history}\n{prev_response}\n"
+    human_message = f"これまでの履歴と「各接客タスクの詳細」の'発言'の内容を見てください。\nそのあと、現在のあなたの接客タスク({agent_task['task']})に対する店員の接客を終了してもいいと判断した場合[Yes]、そうでない場合[No]を出力してください。またもし\'Option\'や\'Sub_Task\'、\'Sub_Option\'の指定があれば、それも判断材料に入れて判断を行ってください。\n\n#各接客タスクの詳細:{TASK_DICT}\n\n#Option:{agent_task['option']}\n\n#Sub_Task:{agent_task['sub_task']}\n#Sub_Option:{agent_task['sub_option']}\n\n#履歴:\n{history}\n{prev_response}\n"
 
     while(1):
         response = model.invoke([SystemMessage(content=system_message),

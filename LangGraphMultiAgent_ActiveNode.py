@@ -3,7 +3,6 @@
 
 import copy
 import os
-import random
 import sys
 import time
 
@@ -12,11 +11,7 @@ from datetime import datetime
 
 # third-party
 from pytz import timezone
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.runnables.config import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.graph import START, END, StateGraph
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Send
 
 #original
@@ -25,26 +20,15 @@ import Children_node as child
 import global_value as g
 
 # OPENAI_API_KEY を入力
-os.environ["OPENAI_API_KEY"] = ""
+#os.environ["OPENAI_API_KEY"] = ""
 
-# 詳細なプロフィールあり
-#SPEAKERS = [{"1": "'国籍': '日本', '性別': '女性', '年代: '30代', '職業': '会社員', '性格': '落ち着いた性格で、じっくり物事を考えて発言します。'"},
-#            {"2": "'国籍': '日本', '性別': '男性', '年代: '20代', '職業': '大学生', '性格': '明るく、前向きな性格です。'"},
-#            {"3": "'国籍': '日本', '性別': '男性', '年代: '40代', '職業': '会社役員', '性格': '温厚で、話しやすい雰囲気を持っています。'"},
-#            {"4": "'国籍': '日本', '性別': '女性', '年代: '30代', '職業': '会社員', '性格': '神経質で、高圧的です。'"},
-#            {"5": "'国籍': '日本', '性別': '男性', '年代: '40代', '職業': '会社役員', '性格': '柔和で、低姿勢です。'"}]
 
-# 詳細なプロフィールなし
-#SPEAKERS = [{"1": "'国籍': '日本', '性別': '女性'"},
-#            {"2": "'国籍': '日本', '性別': '男性'"},
-#            {"3": "'国籍': '日本', '性別': '男性'"},
-#            {"4": "'国籍': '日本', '性別': '女性'"},
-#            {"5": "'国籍': '日本', '性別': '男性'"}]
-SPEAKERS = {"1": "'国籍': '日本', '性別': '女性', '性格': '穏やか'",
+# 顧客役のペルソナを定義
+SPEAKERS = {"1": "'国籍': '日本', '性別': '女性', '性格': '短期で怒りっぽい'",
             "2": "'国籍': '日本', '性別': '男性', '性格': '短期で怒りっぽい'",
             "3": "'国籍': '日本', '性別': '男性', '性格': '穏やか'",
-            "4": "'国籍': '日本', '性別': '女性', '性格': '短期'",
-            "5": "'国籍': '日本', '性別': '男性', '性格': '怒りっぽい'"}
+            "4": "'国籍': '日本', '性別': '女性', '性格': '短期で怒りっぽい'",
+            "5": "'国籍': '日本', '性別': '男性', '性格': '穏やか'"}
 SPEAKERS_NAMES = ["1", "2", "3", "4", "5"]
 
 RECURSION_LIMIT = 1000000000
@@ -105,7 +89,7 @@ def task_init_user_speak(state: controller.AppState):
                 if(agent_name == target_name):
                     history_for_each_agent[agent_name].append(f'店員(User):{user_utterance}\n')
                 elif(agent_name in speaker_name_inEnv):
-                    history_for_each_agent[agent_name].append(f'*System: 店員(User)は他の顧客に接客中\n')
+                    history_for_each_agent[agent_name].append(f'*System: 店員(User)は他の顧客(客{target_name})に接客中\n')
 
             user_utterance = f'店員(User): {user_utterance}\n'
             return {'history': [user_utterance], 'history_for_each_agent': history_for_each_agent}
@@ -148,10 +132,12 @@ def training_end(state: controller.AppState):
 def parallel_node(state: controller.AppState): # 親グラフとサブグラフ間の橋渡しを行う
     agent_name = state.get("agent_name", "")
     agent_tasks = state.get("agent_tasks", {})
+    agent_wait_time = state.get('agent_wait_time', {})
     current_target = state.get("current_target", "")
     model_name = state.get("model_name", "")
     speakers_personality = state.get('speakers_personality')
     thema = state.get("thema", "")
+    task_state = state.get('task_state', {})
 
     speaker_name_inPool = state.get('speakers_names') # 全顧客役の名前(訓練に未参加の者も含む)
     speaker_name_inEnv = state.get('current_speakers_names') # 現在の訓練に参加中の顧客役の名前
@@ -180,16 +166,31 @@ def parallel_node(state: controller.AppState): # 親グラフとサブグラフ�
         # 待ち時間を履歴に導入する
         if(current_target != ''):
             serving_time_for_other_agent = int(time.time() - start_time)
+            serving_time_for_other_agent *= 4 # 時間を4倍
 
             for name in speaker_name_inPool:
                 if(name == current_target):
-                    #pass
                     history_for_each_agent[name].append(response['response'])
-                    history_for_each_agent[name].append(f'*System:客{current_target}への接客が完了しました')
+                    #history_for_each_agent[name].append(f'*System:客{current_target}(あなた)への接客({agent_tasks[agent_name]["task"]})が完了しました（ここまでで）\n')
+                    if(agent_wait_time[name] >= 60):
+                        history_for_each_agent[name].append(f'*System:客{current_target}(あなた)への接客({agent_tasks[agent_name]["task"]})が完了しました（あなたへの接客で{int(agent_wait_time[name]/60)}分が経過）')
+                    else:
+                        history_for_each_agent[name].append(f'*System:客{current_target}(あなた)への接客({agent_tasks[agent_name]["task"]})が完了しました（あなたへの接客で{agent_wait_time[name]}秒が経過）\n')
+                    agent_wait_time[name] = 0
+                    task_state[name] = True
                 if((name != current_target) and (name in speaker_name_inEnv)):
-                    history_for_each_agent[name].append(f'*System:他の顧客への対応で、{serving_time_for_other_agent}秒待たされました.')
-
-            return {"history": [response['response']], "current_target": '', 'history_for_each_agent': history_for_each_agent}
+                    # 何分、何秒待ったか履歴に記録
+                    agent_wait_time[name] += serving_time_for_other_agent
+                    if(agent_wait_time[name] >= 60):
+                        history_for_each_agent[name].append(f'*System:他の顧客(客{current_target})への接客が完了しました（ここまでで{int(agent_wait_time[name]/60)}分が経過）')
+                    else:
+                        history_for_each_agent[name].append(f'*System:他の顧客(客{current_target})への接客が完了しました（ここまでで{serving_time_for_other_agent}秒が経過）')
+            
+            if(serving_time_for_other_agent >= 60):
+                print(f'*System:顧客{current_target}への対応で、{int(serving_time_for_other_agent/60)}分が経過しました.')
+            else:
+                print(f'*System:顧客{current_target}への対応で、{serving_time_for_other_agent}秒経過しました.')
+            return {"history": [response['response']], "current_target": '', 'history_for_each_agent': history_for_each_agent, 'task_state': task_state}
             #return {'history': [response['response']]}
         
 def routing_parallel_nodes(state: controller.AppState):
@@ -298,15 +299,19 @@ def graph_activation():
 
     init_current_speakers_names = []
     init_speakers_names = ["1", "2", "3", "4", "5"]
+    #init_agent_tasks = {'1':{}, '2':{}}
+    #init_agent_wait_time = {'1':0, '2':0}
 
     # グラフ実行
     init_state = {"agent_tasks": {},
+                  "agent_wait_time": {},
                   "current_speakers_names": init_current_speakers_names,
                   "current_target": "None",
                   "feedbacks": [],
                   "history": [],
                   "history_for_each_agent": {},
                   "init_flag": True,
+                  "in_env_agent": {'1': '着席済み'},
                   "model_name": "gpt-4o",
                   "speakers_personality": copy.deepcopy(SPEAKERS),
                   "speakers_names": init_speakers_names,
