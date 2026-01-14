@@ -1,6 +1,7 @@
 import os
 
 from typing import List, TypedDict, Dict
+from pydantic import BaseModel, Field
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -11,8 +12,48 @@ TASK_DICT = {"入店": "'発言':'入店の人数を回答し、テーブルも�
              "料理の注文": "'発言':'具体的な料理の注文を行う。メニューとしては「パンケーキ」「ハンバーガーセット」「バゲットセット」「サンドウィッチセット」「チョコレートケーキ」「ピザ」の6つが存在している。店員によって、注文の受領が行われ、間違いがない場合にこの接客タスクは終了する。'",  # 商品としてどれがあるということを指定する必要がある
              "料理の配膳": "'発言':'まず店員からの料理の配膳が行われ、配膳された料理が違う場合には、そのことについて発言を行う。店員からの配膳が行われ、配膳された料理が注文したものと同じである場合にこの接客タスクは終了する。'", # 自分がどの商品をオーダーしているのか記憶する必要がある
              "テーブルの片付け": "'発言':'店員から片付けが行われた場合にはそれを了承し、行われなかった場合にはテーブル上の皿について片付けを要求する。店員によって、片付けが了承された場合にこの接客タスクは終了する。'", # 自分がどの商品をオーダーしているのか記憶する必要がある
-             "クレーム": "'発言':'店員に対して「今回のテーマにおいて発生する可能性のある不手際」を述べる。クレーム内容に関して、店員から自分の望む回答が得られた場合にこの接客タスクは終了する。'"} 
+             "クレーム": "'発言':'店員に対して「今回のテーマにおいて発生する可能性のある不手際」を述べる。クレーム内容に関して、店員からそのクレーム内容に対して、上手に対応するような妥当な回答が得られた場合にこの接客タスクは終了する。'"} 
 
+
+# シミュレーション用：店員役LLMによる発話生成の出力形式
+class Format_clerk_agent_utterance(BaseModel):
+    """
+    #### 店員役LLMによる発話生成の出力形式\n
+    utterance(str) = 店員役LLMによる発話内容
+    reason(str) = その発話を行った理由
+    """
+    utterance: str = Field(description='The Utterance made by you.')
+    reason: str = Field(description='The reason for that why you made the utterance.')
+
+# シミュレーション用：店員役LLMによる初期発話生成のプロンプトにおける対話履歴の整形
+def get_prompt_target_history_for_init_speak_clerk_agent(target_agent_history: List[str]) -> str:
+    context = ''
+    for temp_history in reversed(target_agent_history):
+        if((len(context) > 0)):
+            break
+        for utt in temp_history.split('\n'):
+            if('*System:' in utt):
+                context += '\t\t' + utt + '\n'
+
+    return '\n' + context
+
+# シミュレーション用：店員役LLMによる発話生成のプロンプトにおける対話履歴の整形
+def get_prompt_target_history_for_clerk_agent(target_agent_history: List[str]) -> str:
+    context = '\n'
+    for temp_history in target_agent_history:
+        for utt in temp_history.split('\n'):
+            if(utt != ''):
+                context += '\t\t' + utt + '\n'
+
+    return context
+
+# 店員役LLMのプロンプト確認
+def check_clerk_llm_prompt(prompt: str, selected_customer: str, reason: str, out_f_name: str):
+    # コンテキストの確認
+    #print(task_dict)
+    os.makedirs(f'./{g.output_dir}/prompt', exist_ok=True)
+    with open(f'./{g.output_dir}/prompt/{out_f_name}.txt', 'a') as fp:
+        fp.write(prompt + f'\n\n\t出力: {selected_customer}\n\t理由: {reason}\n\n')
 
 ## state ######################################################################################
 class ChildAppState(TypedDict):
@@ -26,7 +67,8 @@ class ChildAppState(TypedDict):
     response: この時点におけるエージェントの発言(出力のみ)\n
     return_state: 現在接客を受けているエージェントがクレームを行う場合、または設定されたタスクが完了していないと判定した場合""（ユーザの発話へ）, タスクが完了していると判断した場合"エージェント名"(タスク生成へ)\n
     thema(str) = 会話のテーマ\n
-    utterance_num(int) = 接客中の発話回数
+    utterance_num(int) = 接客中の発話回数\n
+    LLM_sim(bool) = LLM同士の接客訓練シミュレーションであるか否か
     """
     agent_name: str
     agent_personality: str
@@ -38,6 +80,7 @@ class ChildAppState(TypedDict):
     return_state: str
     thema: str
     utterance_num: int
+    LLM_sim: bool
 
 ###################################################################################################
 
@@ -91,15 +134,35 @@ def user_speak(state: ChildAppState):
     Args: state(AppState)
     Return: Dict[str] = 生成した発言
     """
-    response = state.get('response', '')
+    agent_name = state.get('agent_name')
     history = state.get('child_history')
+    model_name = state.get("model_name", "")
+    response = state.get('response', '')
+    thema = state.get('thema')
+    LLM_sim = state.get('LLM_sim')
 
-    while(1):
-        user_utterance = input('あなた:')
+    if(LLM_sim):
+        model = ChatOpenAI(model=model_name)
+        system_message = f"あなたには、{thema}というテーマにおける店員として、顧客役エージェント(客{agent_name})に接客を行うという役割が課されています。"
+        human_message = f"{thema}というテーマにおいて、\'顧客役エージェント\'(客{agent_name})に対して、接客を行ってください。またその際には、\'客{agent_name}の接客状況\'を考慮してください。また、顧客からのクレームには、上手に対応するような妥当な回答を行うようにしてください。\n\n#客{agent_name}の接客状況:{get_prompt_target_history_for_clerk_agent(history)}"
 
-        if(len(user_utterance) > 0):
-            history.append(f'店員(User): {user_utterance}\n')
-            return {'response': response + '\n' + f'店員(User): {user_utterance}\n', 'child_history': history}
+        structured_response_model = model.with_structured_output(Format_clerk_agent_utterance)
+        clerk_response = structured_response_model.invoke([SystemMessage(system_message), HumanMessage(human_message)])
+        
+        check_clerk_llm_prompt(human_message, clerk_response.utterance, clerk_response.reason, 'clerk-llm_utterance_prompt')
+
+        clerk_llm_utt = (clerk_response.utterance).replace('\n', '')
+        print(f'店員(User): {clerk_llm_utt}')
+        user_utterance = f'店員(User): {clerk_llm_utt}\n'
+        history.append(user_utterance)
+        return {'response': response + '\n' + user_utterance, 'child_history': history}
+    else:
+        while(1):
+            user_utterance = input('あなた:')
+
+            if(len(user_utterance) > 0):
+                history.append(f'店員(User): {user_utterance}\n')
+                return {'response': response + '\n' + f'店員(User): {user_utterance}\n', 'child_history': history}
 
 
 # 接客の締めくくりにおける顧客エージェントの発話
